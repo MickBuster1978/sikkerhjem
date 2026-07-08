@@ -26,6 +26,7 @@ export default function Forside() {
             <a href="#saadan">Sådan virker det</a>
             <a href="#tryghed">Tryghed</a>
             <a href="#beregner">Beregn pris</a>
+            <a href="/login" style={{ color: "var(--lygte)" }}>Log ind</a>
           </nav>
         </header>
 
@@ -83,7 +84,9 @@ export default function Forside() {
               <div className="belob">{pris} kr</div>
             </div>
 
-            <button className="knap">Book din chauffør</button>
+            <a href="/book">
+              <button className="knap">Book din chauffør</button>
+            </a>
           </div>
         </section>
       </div>
