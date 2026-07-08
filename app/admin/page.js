@@ -10,6 +10,8 @@ export default function AdminSide() {
   const [chauffoerer, setChauffoerer] = useState([]);
   const [ansoegere, setAnsoegere] = useState([]);
   const [valg, setValg] = useState({}); // bookingId -> { chauffoerId, betaling }
+  const [dokumenter, setDokumenter] = useState({}); // chauffoerId -> [{navn, url}]
+  const [henterDok, setHenterDok] = useState("");
 
   async function hent() {
     const { data: b } = await supabase
@@ -35,6 +37,33 @@ export default function AdminSide() {
       hent();
     });
   }, []);
+
+  async function hentDokumenter(chauffoerId) {
+    setHenterDok(chauffoerId);
+
+    const { data: filer, error } = await supabase.storage
+      .from("dokumenter")
+      .list(chauffoerId);
+
+    if (error || !filer?.length) {
+      setHenterDok("");
+      setDokumenter({ ...dokumenter, [chauffoerId]: [] });
+      return;
+    }
+
+    const liste = [];
+    for (const f of filer) {
+      const { data: signed } = await supabase.storage
+        .from("dokumenter")
+        .createSignedUrl(`${chauffoerId}/${f.name}`, 300); // 5 min gyldighed
+      if (signed?.signedUrl) {
+        liste.push({ navn: f.name, url: signed.signedUrl });
+      }
+    }
+
+    setHenterDok("");
+    setDokumenter({ ...dokumenter, [chauffoerId]: liste });
+  }
 
   async function tildelChauffoer(booking) {
     const v = valg[booking.id];
@@ -83,14 +112,55 @@ export default function AdminSide() {
       <h2 style={{ marginBottom: 16 }}>Chauffør-ansøgninger</h2>
       {ansoegere.length === 0 && <p style={{ color: "var(--daempet)", marginBottom: 24 }}>Ingen nye ansøgninger.</p>}
       {ansoegere.map((a) => (
-        <div key={a.chauffoer_id} className="beregner" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div>
-            <strong>{a.profiles?.fulde_navn || "Uden navn"}</strong>
-            <div style={{ color: "var(--daempet)", fontSize: "0.9rem" }}>{a.profiles?.telefon}</div>
+        <div key={a.chauffoer_id} className="beregner" style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <strong>{a.profiles?.fulde_navn || "Uden navn"}</strong>
+              <div style={{ color: "var(--daempet)", fontSize: "0.9rem" }}>{a.profiles?.telefon}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="knap"
+                style={{ width: "auto", marginTop: 0, background: "var(--asfalt-lys)", color: "var(--tekst)" }}
+                onClick={() => hentDokumenter(a.chauffoer_id)}
+              >
+                {henterDok === a.chauffoer_id ? "Henter..." : "📄 Se dokumenter"}
+              </button>
+              <button className="knap" style={{ width: "auto", marginTop: 0 }} onClick={() => godkendChauffoer(a.chauffoer_id)}>
+                Godkend
+              </button>
+            </div>
           </div>
-          <button className="knap" style={{ width: "auto", marginTop: 0 }} onClick={() => godkendChauffoer(a.chauffoer_id)}>
-            Godkend
-          </button>
+
+          {dokumenter[a.chauffoer_id] && (
+            <div style={{ marginTop: 16 }}>
+              {dokumenter[a.chauffoer_id].length === 0 && (
+                <p style={{ color: "var(--daempet)", fontSize: "0.9rem" }}>
+                  Chaufføren har ikke uploadet dokumenter endnu.
+                </p>
+              )}
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {dokumenter[a.chauffoer_id].map((d) => (
+                  <div key={d.navn} style={{ maxWidth: 220 }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--daempet)", marginBottom: 6 }}>{d.navn}</div>
+                    {d.navn.toLowerCase().endsWith(".pdf") ? (
+                      <a href={d.url} target="_blank" rel="noreferrer" style={{ color: "var(--lygte)", fontSize: "0.9rem" }}>
+                        Åbn PDF ↗
+                      </a>
+                    ) : (
+                      <a href={d.url} target="_blank" rel="noreferrer">
+                        <img
+                          src={d.url}
+                          alt={d.navn}
+                          style={{ width: "100%", borderRadius: 10, border: "1px solid var(--asfalt-lys)" }}
+                        />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ))}
 
